@@ -1,0 +1,3 @@
+requires 'JSON::XS';
+requires 'Template';
+requires 'YAML::XS';
