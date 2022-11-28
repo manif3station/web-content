@@ -62,6 +62,17 @@ HEREDOC
     is $content->get($path), 'bad';
 };
 
+subtest 'array list of a directory' => sub {
+    mkpath 't/samples/foo/d1';
+    mkpath 't/samples/foo/d2';
+    mkpath 't/samples/foo/d3';
+    is_deeply $content->get('foo'), [qw(bar d1 d2 d3)]
+};
+
+subtest 'array list of a directory' => sub {
+    is_deeply $content->get, [qw(foo foo1 foo2)]
+};
+
 subtest "not found" => sub {
     is $content->get('foo.bar.somewhere'), undef;
 };

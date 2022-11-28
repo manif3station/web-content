@@ -28,7 +28,7 @@ sub _content {
 sub get {
     my ( $self, $path ) = @_;
 
-    $path = [ split /\./, $path ];
+    $path = [ split /\./, $path // '.'];
 
     my $data = $self->get_data_from_file( $path, $self->dir );
 
@@ -75,6 +75,28 @@ sub get_data_from_file {
             return undef;
         }
     }
+
+    if (-d $location) {
+        opendir(my $dh, $location);
+
+        my @data;
+
+        while (my $item = readdir($dh)) {
+            next if $item =~ m/^\.{1,2}$/;
+
+            if (-d "$location/$item") {
+                if ($item !~/\./) {
+                    push @data, $item;
+                }
+            }
+            elsif ($item =~ m/^([^\.]+)\.(json|yaml|yml|txt)$/) {
+                push @data, $1;
+            }
+        }
+
+        return [sort @data];
+    }
+
     return undef;
 }
 
