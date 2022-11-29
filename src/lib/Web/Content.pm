@@ -4,14 +4,11 @@ use Moo;
 use JSON::XS ();
 use YAML::XS ();
 use Template;
-
-if (!$ENV{WEB_CONTENT_BASE_DIR}) {
-    warn ">> You can set where the content base dir is 'WEB_CONTENT_BASE_DIR'";
-}
+use File::Path 'mkpath';
 
 has dir => ( is => 'ro', lazy => 1, builder => 1 );
 
-sub _build_dir { $ENV{WEB_CONTENT_BASE_DIR} // "/app/src/content" }
+sub _build_dir { "/data/content" }
 
 has json => ( is => 'ro', lazy => 1, builder => 1 );
 
@@ -26,6 +23,20 @@ sub _content {
 }
 
 sub get {
+    my ( $self, @paths ) = @_;
+    
+    if (@paths <= 1) {
+        return $self->get_data_from_path(@paths);
+    }
+    elsif (wantarray) {
+        return map { $self->get_data_from_path($_) } @paths;
+    }
+    else {
+        return [map { $self->get_data_from_path($_) } @paths];
+    }
+}
+
+sub get_data_from_path {
     my ( $self, $path ) = @_;
 
     $path = [ split /\./, $path // '.'];
@@ -67,6 +78,9 @@ sub get_data_from_file {
         }
         elsif ( -f "$location.txt" ) {
             return $self->_content("$location.txt");
+        }
+        elsif ( -f "$location.html" ) {
+            return $self->_content("$location.html");
         }
         elsif ( -f $location ) {
             return $self->_content( $location, 'raw' );
