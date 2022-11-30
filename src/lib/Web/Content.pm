@@ -8,7 +8,7 @@ use File::Path 'mkpath';
 
 has dir => ( is => 'ro', lazy => 1, builder => 1 );
 
-sub _build_dir { "/data/content" }
+sub _build_dir { $ENV{WEB_CONTENT_DIR} // "/data/content" }
 
 has json => ( is => 'ro', lazy => 1, builder => 1 );
 
@@ -24,22 +24,22 @@ sub _content {
 
 sub get {
     my ( $self, @paths ) = @_;
-    
-    if (@paths <= 1) {
+
+    if ( @paths <= 1 ) {
         return $self->get_data_from_path(@paths);
     }
     elsif (wantarray) {
         return map { $self->get_data_from_path($_) } @paths;
     }
     else {
-        return [map { $self->get_data_from_path($_) } @paths];
+        return [ map { $self->get_data_from_path($_) } @paths ];
     }
 }
 
 sub get_data_from_path {
     my ( $self, $path ) = @_;
 
-    $path = [ split /\./, $path // '.'];
+    $path = [ split /\./, $path // '.' ];
 
     my $data = $self->get_data_from_file( $path, $self->dir );
 
@@ -77,10 +77,12 @@ sub get_data_from_file {
             return YAML::XS::Load( $self->_content("$location.yaml") );
         }
         elsif ( -f "$location.txt" ) {
-            return $self->_content("$location.txt");
+            chomp( my $txt = $self->_content("$location.txt") );
+            return $txt;
         }
         elsif ( -f "$location.html" ) {
-            return $self->_content("$location.html");
+            chomp( my $html = $self->_content("$location.html") );
+            return $html;
         }
         elsif ( -f $location ) {
             return $self->_content( $location, 'raw' );
@@ -90,25 +92,25 @@ sub get_data_from_file {
         }
     }
 
-    if (-d $location) {
-        opendir(my $dh, $location);
+    if ( -d $location ) {
+        opendir( my $dh, $location );
 
         my @data;
 
-        while (my $item = readdir($dh)) {
+        while ( my $item = readdir($dh) ) {
             next if $item =~ m/^\.{1,2}$/;
 
-            if (-d "$location/$item") {
-                if ($item !~/\./) {
+            if ( -d "$location/$item" ) {
+                if ( $item !~ /\./ ) {
                     push @data, $item;
                 }
             }
-            elsif ($item =~ m/^([^\.]+)\.(json|yaml|yml|txt)$/) {
+            elsif ( $item =~ m/^([^\.]+)\.(json|yaml|yml|txt)$/ ) {
                 push @data, $1;
             }
         }
 
-        return [sort @data];
+        return [ sort @data ];
     }
 
     return undef;
