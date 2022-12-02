@@ -14,6 +14,12 @@ has json => ( is => 'ro', lazy => 1, builder => 1 );
 
 sub _build_json { JSON::XS->new->canonical->pretty->allow_nonref->utf8 }
 
+has cache => ( is => 'ro', default => sub { {} } );
+
+has memory_lifetime => ( is => 'ro', lazy => 1, builder => 1 );
+
+sub _build_memory_lifetime { $ENV{WEB_CONTENT_CACHE_LIFETIME} // 60 * 10 }
+
 sub _content {
     my ( $self, $file, $encoding ) = @_;
     $encoding //= 'utf8';
@@ -36,8 +42,34 @@ sub get {
     }
 }
 
+sub memory {
+    my ( $self, $path ) = @_;
+
+    my $cache = $self->cache->{$path}
+        or return {};
+
+    my $memory_lifetime = $self->memory_lifetime;
+
+    my $life_spent = time - $cache->{created};
+
+    return {} if $life_spent >= $memory_lifetime;
+
+    return $cache;
+}
+
+sub remember {
+    $_[0]->cache->{ $_[1] } = {
+        created => time,
+        data    => $_[2],
+    };
+}
+
 sub get_data_from_path {
     my ( $self, $path ) = @_;
+
+    my $val = $self->memory($path);
+
+    return $val->{data} if $val->{found};
 
     $path = [ split /\./, $path // '.' ];
 
@@ -55,7 +87,7 @@ sub get_data_from_path {
         \my $undef,
     );
 
-    return $data;
+    return $self->remember($path => $data)->{data};
 }
 
 sub get_data_from_file {
