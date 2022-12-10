@@ -5,6 +5,8 @@ use JSON::XS ();
 use YAML::XS ();
 use Template;
 use File::Path 'mkpath';
+use feature qw(refaliasing);
+no warnings qw(experimental::refaliasing);
 
 has dir => ( is => 'ro', lazy => 1, builder => 1 );
 
@@ -13,6 +15,8 @@ sub _build_dir { $ENV{WEB_CONTENT_DIR} // "/data/content" }
 has json => ( is => 'ro', lazy => 1, builder => 1 );
 
 sub _build_json { JSON::XS->new->canonical->pretty->allow_nonref->utf8 }
+
+has use_caching => ( is => 'ro', default => sub { $ENV{WEB_CONTENT_CACHE} // 0 } );
 
 has cache => ( is => 'ro', default => sub { {} } );
 
@@ -30,6 +34,8 @@ sub _content {
 
 sub get {
     my ( $self, @paths ) = @_;
+
+    push @paths, '.' if !@paths;
 
     if ( @paths <= 1 ) {
         return $self->get_data_from_path(@paths);
@@ -54,28 +60,34 @@ sub memory {
 
     return {} if $life_spent >= $memory_lifetime;
 
-    return $cache;
+    my $found = {found => 1};
+
+    \$found->{data} = \$cache->{data};
+
+    return $found;
 }
 
 sub remember {
-    $_[0]->cache->{ $_[1] } = {
+    my ( $self, $path, $data ) = @_;
+    $self->cache->{$path} = {
         created => time,
-        data    => $_[2],
-    };
+        data    => $data,
+    } if $self->use_caching;
+    return $data;
 }
 
 sub get_data_from_path {
-    my ( $self, $path ) = @_;
+    my ( $self, $path_str ) = @_;
 
-    my $val = $self->memory($path);
+    my $val = $self->memory($path_str);
 
     return $val->{data} if $val->{found};
 
-    $path = [ split /\./, $path // '.' ];
+    my $path = [ split /\./, $path_str // '.' ];
 
     my $data = $self->get_data_from_file( $path, $self->dir );
 
-    return $data if !@$path || !$data || !ref $data;
+    return $self->remember($path_str => $data) if !$data || !ref $data;
 
     my $remain_path = join '.', @$path;
 
@@ -87,7 +99,7 @@ sub get_data_from_path {
         \my $undef,
     );
 
-    return $self->remember($path => $data)->{data};
+    return $self->remember($path_str => $data);
 }
 
 sub get_data_from_file {
