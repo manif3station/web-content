@@ -32,6 +32,33 @@ sub _content {
     <$fh>;
 }
 
+sub update {
+    my $self = shift;
+    $self->insert( @_, 'append' );
+}
+
+sub insert {
+    my ( $self, $base, $name, $data, $append ) = @_;
+
+    $base =~ s/\./\//g;
+
+    mkpath( my $dir = $self->dir . "/$base" );
+
+    if ( $name =~ /\.json/ ) {
+        $data = $self->json->pretty->canonical->encode($data);
+    }
+    elsif ( $name =~ m/\.ya?ml/ ) {
+        $data = YAML::XS::Dump($data);
+    }
+
+    my $file = "$dir/$name";
+
+    open my $fh, ( $append ? '>>' : '>' ), $file
+        or die "Unable to write to file '$file'";
+
+    print $fh $data;
+}
+
 sub get {
     my ( $self, @paths ) = @_;
 
